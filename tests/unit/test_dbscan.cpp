@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <map>
@@ -271,6 +272,89 @@ TEST(Dbscan, BothEntryPointsRejectNonFiniteCoordinates) {
         const std::vector<Point> points{{0, 0, value}};
         EXPECT_THROW(dbscan::dbscan(points, 1.0F, 1), std::invalid_argument);
         EXPECT_THROW(dbscan::dbscanNaive(points, 1.0F, 1), std::invalid_argument);
+    }
+}
+
+TEST(Grid, NearZeroRadiusBoundaryMatchesDistancePredicate) {
+    // Rounding accepts a pair two cells apart, but must still reject a point
+    // one float step beyond the radius. Check all axes, signs and query orders.
+    for (const float eps : {0.125F, 1.0F, 1024.0F}) {
+        for (const float sign : {-1.0F, 1.0F}) {
+            for (std::size_t axis = 0; axis < 3; ++axis) {
+                SCOPED_TRACE(::testing::Message() << "eps=" << eps
+                             << " sign=" << sign << " axis=" << axis);
+                std::array<float, 3> a{0, 0, 0}, b{0, 0, 0}, c{0, 0, 0};
+                a[axis] = -sign * eps * 1e-20F;
+                b[axis] = sign * eps;
+                c[axis] = sign * std::nextafter(eps, std::numeric_limits<float>::infinity());
+                const std::vector<Point> points{
+                    {a[0], a[1], a[2]}, {b[0], b[1], b[2]}, {c[0], c[1], c[2]}};
+                const dbscan::Grid grid(points, eps);
+                const double radius2 = static_cast<double>(eps) * eps;
+                ASSERT_LE(dbscan::dist2(points[0], points[1]), radius2);
+                ASSERT_GT(dbscan::dist2(points[0], points[2]), radius2);
+                for (std::size_t query = 0; query < points.size(); ++query) {
+                    std::vector<std::uint32_t> actual, expected;
+                    grid.neighbours(query, actual);
+                    std::sort(actual.begin(), actual.end());
+                    for (std::uint32_t i = 0; i < points.size(); ++i) {
+                        if (dbscan::dist2(points[query], points[i]) <= radius2) expected.push_back(i);
+                    }
+                    EXPECT_EQ(actual, expected) << "query=" << query;
+                }
+                EXPECT_TRUE(equivalentLabels(dbscan::dbscan(points, eps, 2),
+                                            dbscan::dbscanNaive(points, eps, 2)));
+            }
+        }
+    }
+}
+
+TEST(Dbscan, RandomizedMembershipAcrossCoordinateScales) {
+    for (unsigned seed = 0; seed < 40; ++seed) {
+        std::mt19937 random(seed);
+        std::uniform_real_distribution<float> coordinate(-3.0F, 3.0F);
+        for (const float scale : {1e-12F, 0.125F, 0.5F, 2.0F, 128.0F, 1e12F}) {
+            std::vector<Point> points;
+            for (int i = 0; i < 128; ++i) {
+                points.push_back({scale * coordinate(random), scale * coordinate(random),
+                                  scale * coordinate(random)});
+            }
+            // Exercise duplicate samples in addition to general random positions.
+            points.push_back(points.front());
+            for (const int minimum : {1, 2, 4, 200}) {
+                SCOPED_TRACE(::testing::Message() << "seed=" << seed << " scale=" << scale
+                                                  << " minimum=" << minimum);
+                EXPECT_TRUE(equivalentLabels(dbscan::dbscan(points, scale, minimum),
+                                              dbscan::dbscanNaive(points, scale, minimum)));
+            }
+        }
+    }
+}
+
+TEST(Dbscan, TranslationPreservesMembershipAwayFromRoundingBoundaries) {
+    std::mt19937 random(91);
+    std::uniform_int_distribution<int> coordinate(-16, 16);
+    std::vector<Point> points;
+    for (int i = 0; i < 200; ++i) {
+        points.push_back({0.125F * coordinate(random), 0.125F * coordinate(random),
+                          0.125F * coordinate(random)});
+    }
+    const auto expected = dbscan::dbscan(points, 0.75F, 4);
+    for (auto& point : points) {
+        point.x += 128; point.y -= 256; point.z += 32;
+    }
+    EXPECT_TRUE(equivalentLabels(dbscan::dbscan(points, 0.75F, 4), expected));
+}
+
+TEST(Dbscan, AmbiguousBorderDoesNotMergeCoreComponents) {
+    std::vector<Point> points{{-1.5F,0,0}, {-1.6F,0,0}, {-1.7F,0,0}, {-0.9F,0,0},
+                              {0,0,0}, {0.9F,0,0}, {1.5F,0,0}, {1.6F,0,0}, {1.7F,0,0}};
+    for (int order = 0; order < 2; ++order) {
+        const auto labels = dbscan::dbscan(points, 1.0F, 4);
+        // The central border follows the first component visited, in either order.
+        EXPECT_TRUE(equivalentLabels(labels, {1,1,1,1,1,2,2,2,2}));
+        EXPECT_TRUE(equivalentLabels(labels, dbscan::dbscanNaive(points, 1.0F, 4)));
+        std::reverse(points.begin(), points.end());
     }
 }
 

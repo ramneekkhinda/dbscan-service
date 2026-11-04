@@ -226,8 +226,10 @@ arithmetic to avoid float overflow/underflow. Values extremely close to a radius
 or cell boundary remain subject to floating-point rounding; this is not exact
 arithmetic. The grid also enforces the cell range described below.
 
-`dbscan()` uses a uniform grid with cell size eps, checking 27 neighbouring cells
-per query and filtering candidates by squared distance. It packs three signed
+`dbscan()` uses a uniform grid with cell size eps, searching cells covered by
+outward-rounded radius bounds and filtering candidates by squared distance.
+Queries normally cover 27 cells; boundary cases can include additional cells so
+the grid agrees with the floating-point distance predicate. It packs three signed
 cell indices into a 63-bit key, using 21 bits per axis. Cell indices are computed
 using `floor(coordinate / eps)`, including for negative coordinates. Supported
 indices are -1,048,576 through 1,048,575 per axis; out-of-range input throws

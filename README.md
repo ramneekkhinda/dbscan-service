@@ -111,8 +111,9 @@ flowchart LR
     Server --> Metrics[HTTP /metrics]
 ```
 
-The grid uses cells of width `eps` and searches 27 neighbouring cells per point,
-filtering candidates by distance. This reduces neighbour-search work for
+The grid uses cells of width `eps` and searches cells intersecting each point's
+radius bounds, rounded outward to include floating-point boundary cases. It
+filters candidates by distance. This reduces neighbour-search work for
 spatially spread clouds; dense neighbourhoods can still require quadratic work.
 
 | Setting or result | Meaning |

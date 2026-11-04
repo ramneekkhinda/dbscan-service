@@ -117,3 +117,29 @@ TEST(Metrics, ConcurrentUpdatesAndCumulativeHistogram) {
         EXPECT_NE(text.find(sample), std::string::npos) << sample;
     }
 }
+
+TEST(Protocol, ExactPointCountAndMinimumBounds) {
+    wire::Request request, decoded;
+    request.eps = 1;
+    request.nPoints = wire::kMaxPoints;
+    request.minSamples = static_cast<std::uint32_t>(std::numeric_limits<int>::max());
+    EXPECT_EQ(wire::decodeRequest(wire::encodeRequest(request), decoded), wire::Status::Ok);
+    ++request.minSamples;
+    EXPECT_EQ(wire::decodeRequest(wire::encodeRequest(request), decoded), wire::Status::BadParameters);
+    request.minSamples = 1; ++request.nPoints;
+    EXPECT_EQ(wire::decodeRequest(wire::encodeRequest(request), decoded), wire::Status::TooManyPoints);
+}
+
+TEST(Protocol, RejectsMalformedResponseValues) {
+    wire::Response response, decoded;
+    response.status = static_cast<wire::Status>(6);
+    EXPECT_FALSE(wire::decodeResponse(wire::encodeResponse(response), decoded));
+    response.status = wire::Status::BadParameters; response.nPoints = 1;
+    EXPECT_FALSE(wire::decodeResponse(wire::encodeResponse(response), decoded));
+    response.status = wire::Status::Ok; response.nPoints = 0;
+    for (const float elapsed : {-1.0F, std::numeric_limits<float>::infinity(),
+                                std::numeric_limits<float>::quiet_NaN()}) {
+        response.dbscanMs = elapsed;
+        EXPECT_FALSE(wire::decodeResponse(wire::encodeResponse(response), decoded));
+    }
+}

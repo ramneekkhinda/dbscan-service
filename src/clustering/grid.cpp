@@ -58,12 +58,26 @@ std::uint64_t Grid::key(const Cell& cell) {
 void Grid::neighbours(std::size_t index, std::vector<std::uint32_t>& out) const {
     out.clear();
     const auto& point = points_.at(index);
-    const Cell centre = cellFor(point);
-    // A point within eps can only be in this cell or an immediately adjacent one.
-    for (int dx = -1; dx <= 1; ++dx) {
-        for (int dy = -1; dy <= 1; ++dy) {
-            for (int dz = -1; dz <= 1; ++dz) {
-                const Cell cell{centre[0] + dx, centre[1] + dy, centre[2] + dz};
+    const std::array<double, 3> coordinates{point.x, point.y, point.z};
+    Cell lower{}, upper{};
+    const double infinity = std::numeric_limits<double>::infinity();
+    // The rounded distance predicate can accept points just beyond the exact
+    // radius (e.g. -1e-20 and 1 at eps=1), even two cells apart. Round the query
+    // bounds outward, including division, so candidate selection cannot lose
+    // those points. The final distance check still decides membership.
+    const double radius = std::nextafter(static_cast<double>(eps_), infinity);
+    for (std::size_t axis = 0; axis < coordinates.size(); ++axis) {
+        const double lo = std::nextafter(coordinates[axis] - radius, -infinity);
+        const double hi = std::nextafter(coordinates[axis] + radius, infinity);
+        lower[axis] = static_cast<std::int64_t>(
+            std::floor(std::nextafter(lo / eps_, -infinity)));
+        upper[axis] = static_cast<std::int64_t>(
+            std::floor(std::nextafter(hi / eps_, infinity)));
+    }
+    for (auto x = lower[0]; x <= upper[0]; ++x) {
+        for (auto y = lower[1]; y <= upper[1]; ++y) {
+            for (auto z = lower[2]; z <= upper[2]; ++z) {
+                const Cell cell{x, y, z};
                 // At the packed range boundary, skip unrepresentable empty cells.
                 if (!inRange(cell)) {
                     continue;

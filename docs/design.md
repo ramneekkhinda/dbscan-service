@@ -96,8 +96,13 @@ Two entry points share expansion and differ only in neighbour search:
 - `dbscanNaive()` scans all points per query. Its O(n²) work provides a simple
   reference for checking the index.
 - `dbscan()` uses a uniform grid with cell size eps. Cell coordinates use
-  `floor(coordinate / eps)`, including negatives. Each query scans 27 cells and
-  filters candidates with `dist2 <= eps²`.
+  `floor(coordinate / eps)`, including negatives. Each query scans the cells
+  intersecting outward-rounded radius bounds, normally 27 cells, and filters
+  candidates with `dist2 <= eps²`. The radius, coordinate bounds and cell-bound
+  division are rounded outward with `nextafter`. This includes pairs such as
+  `-1e-20` and `1` at eps=1: their double distance rounds to the radius even
+  though their grid cells are two apart. Extra candidates still pass through
+  the same distance predicate; the fix does not increase the accepted radius.
 
 Three signed cell indices are offset by `2^20` and packed into non-overlapping
 21-bit fields in a uint64 key. Out-of-range coordinates are rejected instead of
