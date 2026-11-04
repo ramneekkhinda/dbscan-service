@@ -1,0 +1,19 @@
+# Generated builds and clustering output (keep sample input/ground truth in data/).
+/build/
+/build-*/
+/cmake-build-*/
+/out*/
+
+# Personal study material; keep the public README and source comments in Git.
+/LEARNING.md
+/learning/
+/notes/
+/docs/learning/
+
+# Local Python environments, caches and editor settings.
+.venv/
+__pycache__/
+*.py[cod]
+.vscode/
+.idea/
+*.swp

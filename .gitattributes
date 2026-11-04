@@ -1,0 +1,2 @@
+# Keep source and scripts consistent when cloning between Windows and Linux/WSL.
+* text=auto eol=lf
