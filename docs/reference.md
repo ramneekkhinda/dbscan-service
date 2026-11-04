@@ -5,7 +5,7 @@ exporter. DBSCAN is implemented here using a uniform grid, with a naive referenc
 implementation for testing. Runtime dependencies: the C++ standard library and
 Linux/POSIX sockets. GoogleTest is fetched only for tests.
 
-See [DESIGN.md](DESIGN.md) for architecture, ownership, algorithm choices and
+See [design.md](design.md) for architecture, ownership, algorithm choices and
 failure-handling tradeoffs. This README contains setup commands and protocol references.
 
 ## Build and test on Linux
@@ -14,7 +14,7 @@ Requires CMake >= 3.16, g++ or clang++, Git and internet access on the first
 configuration to fetch GoogleTest v1.14.0. GoogleTest is a test-only dependency;
 the library uses only the C++ standard library.
 
-From this directory:
+From the repository root:
 
 Stop an already-running server with Ctrl+C before rebuilding its binary. Start it
 again afterward to use the new code; a running process does not reload changes.
@@ -51,7 +51,7 @@ checks exercise the supported paths; they do not establish production readiness.
 
 ## Run the complete service
 
-In terminal 1, from this directory:
+In terminal 1, from the repository root:
 
 ```sh
 ./build/dbscan_server --port 5555 --metrics-port 9091
@@ -60,7 +60,7 @@ In terminal 1, from this directory:
 In terminal 2:
 
 ```sh
-./build/processPointcloud --input data/sample_scene.xyz --output-dir out_demo \
+./build/processPointcloud --input examples/data/spheres/sample_scene.xyz --output-dir out_demo \
     --eps 0.65 --min_samples 4 127.0.0.1:5555
 curl http://127.0.0.1:9091/metrics
 ```
@@ -95,14 +95,14 @@ nine significant digits, enough to round-trip float32 values.
 Regenerate the supplied scene and one-label-per-point ground truth (fixed seed):
 
 ```sh
-./build/make_scene data/sample_scene.xyz
+./build/make_scene examples/data/spheres/sample_scene.xyz
 ```
 
 ### Synthetic traffic scene
 
 ```sh
 python3 tools/make_road_scene.py
-./build/processPointcloud --input data/road_scene.xyz --output-dir out_road_demo \
+./build/processPointcloud --input examples/data/traffic/road_scene.xyz --output-dir out_road_demo \
     --eps 0.6 --min_samples 4 127.0.0.1:5555
 ```
 
@@ -132,8 +132,8 @@ testing only):
 ```sh
 python3 -m venv build/reference-env
 build/reference-env/bin/pip install scikit-learn
-build/reference-env/bin/python tools/compare_sklearn.py data/sample_scene.xyz \
-    --eps 0.65 --min_samples 4 --ground-truth data/sample_scene.labels
+build/reference-env/bin/python tools/compare_sklearn.py examples/data/spheres/sample_scene.xyz \
+    --eps 0.65 --min_samples 4 --ground-truth examples/data/spheres/sample_scene.labels
 ```
 
 The script compares cluster membership up to renumbering, with exact noise
@@ -250,7 +250,7 @@ cloud.
 
 ## Benchmark
 
-From this directory, after building:
+From the repository root, after building:
 
 ```sh
 ./build/benchmark_dbscan
@@ -312,9 +312,13 @@ accuracy or prolonged-load qualification.
 
 ## Repository contents
 
-`include/` and `src/` contain the C++ implementation; `tests/` contains automated
-checks; `tools/` contains scene generators, a benchmark and optional sklearn
-comparison; `data/` contains reproducible sample input and ground truth. The
+`include/dbscan/` contains the public clustering headers. `src/clustering/` and
+`src/service/` contain library implementations, with internal service headers
+beside their source. `apps/` contains the server and client entry points.
+`tests/unit/` and `tests/integration/` contain automated checks; `fixtures/`
+contains shared synthetic scene helpers. `tools/` contains scene generators and
+the optional sklearn comparison; `benchmarks/` contains the performance benchmark;
+`examples/data/` contains reproducible sample input and ground truth. The
 Prometheus exporter is built in; running a separate Prometheus installation is not
 required. No monitoring binary or dashboard setup is included.
 

@@ -7,7 +7,7 @@ Prometheus metrics. Send an XYZ file, choose a neighbourhood radius and minimum
 point count, and get a separate file for every cluster.
 
 [Quickstart](#quickstart) · [How it works](#how-it-works) ·
-[Technical reference](dbscan-service/README.md) · [Architecture](dbscan-service/DESIGN.md)
+[Technical reference](docs/reference.md) · [Architecture](docs/design.md)
 
 ## What you get
 
@@ -38,7 +38,6 @@ access for the first test configuration to fetch GoogleTest. Install Python 3 to
 enable the end-to-end tests; `curl` is used for the metrics example below.
 
 ```sh
-cd dbscan-service
 cmake -S . -B build
 cmake --build build -j
 (cd build && ctest --output-on-failure)
@@ -49,7 +48,7 @@ fetching GoogleTest, add `-DBUILD_TESTING=OFF` to the configuration command.
 
 ### 2. Start the server
 
-In the same terminal, from `dbscan-service/`:
+In the same terminal, from the repository root:
 
 ```sh
 ./build/dbscan_server --port 5555 --metrics-port 9091
@@ -63,11 +62,11 @@ DBSCAN on 5555, /metrics on 9091
 
 ### 3. Cluster the sample
 
-Open a second Linux/WSL terminal in `dbscan-service/` and run:
+Open a second Linux/WSL terminal in the repository root and run:
 
 ```sh
 ./build/processPointcloud \
-  --input data/sample_scene.xyz \
+  --input examples/data/spheres/sample_scene.xyz \
   --output-dir out_demo \
   --eps 0.65 \
   --min_samples 4 \
@@ -140,27 +139,38 @@ std::vector<dbscan::Point> points{
 auto labels = dbscan::dbscan(points, 0.2F, 2); // {1, 1, -1}
 ```
 
-Labels preserve input order. See the [library contract](dbscan-service/README.md#library-contract)
+Labels preserve input order. See the [library contract](docs/reference.md#library-contract)
 for numeric bounds, validation, and lifetime requirements.
 
 ## Explore further
 
-All commands below run from `dbscan-service/` after building.
+All commands below run from the repository root after building.
 
 | Goal | Start here |
 | --- | --- |
-| Try the 5,000-point traffic scene | [Synthetic traffic scene](dbscan-service/README.md#synthetic-traffic-scene) |
-| Compare grid and naive clustering speed | Run `./build/benchmark_dbscan`; see [benchmark methodology](dbscan-service/README.md#benchmark) |
-| Check membership against scikit-learn | [Files and reference comparison](dbscan-service/README.md#files-and-reference-comparison) |
-| Write another client | [Binary wire protocol](dbscan-service/README.md#wire-protocol) |
-| Configure monitoring | [Metric names and scrape configuration](dbscan-service/README.md#metrics) |
-| Review architecture and tradeoffs | [Design document](dbscan-service/DESIGN.md) |
+| Try the 5,000-point traffic scene | [Synthetic traffic scene](docs/reference.md#synthetic-traffic-scene) |
+| Compare grid and naive clustering speed | Run `./build/benchmark_dbscan`; see [benchmark methodology](docs/reference.md#benchmark) |
+| Check membership against scikit-learn | [Files and reference comparison](docs/reference.md#files-and-reference-comparison) |
+| Write another client | [Binary wire protocol](docs/reference.md#wire-protocol) |
+| Configure monitoring | [Metric names and scrape configuration](docs/reference.md#metrics) |
+| Review architecture and tradeoffs | [Design document](docs/design.md) |
 
-Implementation lives in [`include/`](dbscan-service/include/) and
-[`src/`](dbscan-service/src/); automated checks in
-[`tests/`](dbscan-service/tests/); generators and benchmarks in
-[`tools/`](dbscan-service/tools/); sample inputs and ground truth in
-[`data/`](dbscan-service/data/).
+## Repository layout
+
+The repository root is the CMake build entry point.
+
+| Directory | Purpose |
+| --- | --- |
+| [`include/dbscan/`](include/dbscan/) | Public clustering headers |
+| [`src/clustering/`](src/clustering/) | DBSCAN and uniform-grid implementation |
+| [`src/service/`](src/service/) | Internal protocol, XYZ file I/O, and metrics headers and implementation |
+| [`apps/`](apps/) | Server and command-line client entry points |
+| [`tests/`](tests/) | Unit tests and end-to-end integration tests |
+| [`benchmarks/`](benchmarks/) | Grid-versus-naive performance benchmark |
+| [`tools/`](tools/) | Scene generators and optional scikit-learn comparison |
+| [`fixtures/`](fixtures/) | Synthetic scene helpers shared by tests, tools, and benchmarks |
+| [`examples/data/`](examples/data/) | Sphere and traffic scenes with ground truth |
+| [`docs/`](docs/) | Architecture and technical reference |
 
 ## Deployment scope
 
@@ -169,5 +179,5 @@ all IPv4 interfaces, with no authentication or TLS. Connections use detached
 threads without a global concurrency or memory budget, and shutdown does not
 drain in-flight work. Socket timeouts do not limit clustering CPU time.
 
-See [deployment limits and remaining production work](dbscan-service/README.md#deployment-scope-and-remaining-production-work)
+See [deployment limits and remaining production work](docs/reference.md#deployment-scope-and-remaining-production-work)
 before deploying beyond a controlled environment.

@@ -1,4 +1,4 @@
-#include "dbscan/xyz_io.h"
+#include "xyz_io.h"
 #include <cmath>
 #include <cctype>
 #include <fstream>

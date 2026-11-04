@@ -1,6 +1,6 @@
 #include "dbscan/dbscan.h"
-#include "dbscan/metrics.h"
-#include "dbscan/protocol.h"
+#include "metrics.h"
+#include "protocol.h"
 #include <sys/socket.h>
 #include <unistd.h>
 #include <cerrno>

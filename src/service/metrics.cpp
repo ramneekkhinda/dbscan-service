@@ -1,4 +1,4 @@
-#include "dbscan/metrics.h"
+#include "metrics.h"
 #include <iomanip>
 #include <locale>
 #include <sstream>

@@ -1,4 +1,4 @@
-#include "dbscan/xyz_io.h"
+#include "xyz_io.h"
 #include "synthetic.h"
 #include <filesystem>
 #include <fstream>
@@ -8,7 +8,7 @@
 int main(int argc, char** argv) {
     try {
         if (argc > 2) throw std::invalid_argument("usage: make_scene [scene.xyz]");
-        std::filesystem::path path(argc == 2 ? argv[1] : "data/sample_scene.xyz");
+        std::filesystem::path path(argc == 2 ? argv[1] : "examples/data/spheres/sample_scene.xyz");
         if (!path.parent_path().empty()) std::filesystem::create_directories(path.parent_path());
         std::mt19937 random(42);
         std::vector<dbscan::Point> points;

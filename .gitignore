@@ -1,4 +1,4 @@
-# Generated builds and clustering output (keep sample input/ground truth in data/).
+# Generated builds and clustering output (keep sample input/ground truth in examples/data/).
 /build/
 /build-*/
 /cmake-build-*/
@@ -17,3 +17,6 @@ __pycache__/
 .vscode/
 .idea/
 *.swp
+
+# Local build outputs and personal notes from the previous layout.
+/dbscan-service/

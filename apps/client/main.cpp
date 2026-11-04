@@ -1,5 +1,5 @@
-#include "dbscan/protocol.h"
-#include "dbscan/xyz_io.h"
+#include "protocol.h"
+#include "xyz_io.h"
 #include <cmath>
 #include <filesystem>
 #include <iostream>

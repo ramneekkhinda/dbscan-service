@@ -5,7 +5,7 @@ point. Its target workload is about 5,000 points at 10 requests per second. The
 design keeps clustering independent of networking and makes ownership explicit.
 It assigns anonymous clusters; vehicle recognition, tracking and ground removal
 are outside its scope. Build commands, wire offsets and metric names are in the
-[README](README.md).
+[technical reference](reference.md).
 
 ## Architecture
 
@@ -32,6 +32,28 @@ flowchart LR
 
 The server, client and tests link the clustering library. Only tests need
 GoogleTest; sklearn is an optional independent reference tool.
+
+## Source layout and build boundaries
+
+The root `CMakeLists.txt` builds the project. Public clustering headers live in
+`include/dbscan/`, with their implementation in `src/clustering/`. The `dbscan`
+target has no dependency on the service layer.
+
+`src/service/` keeps protocol, XYZ I/O, and metrics headers beside their
+implementation. The `service_io` target exposes that internal include directory
+to its consumers; these headers are separate from the public clustering API.
+Server and client entry points live in `apps/server/` and `apps/client/`.
+
+`tests/unit/` contains GoogleTest cases; `tests/integration/` contains Python
+checks that launch the real binaries. `fixtures/synthetic.h` supplies shared
+scene helpers to unit tests, scene-generation tools, and the benchmark, without
+making tools depend on the test directory. `benchmarks/` contains performance
+measurement; `tools/` contains generators and the optional reference comparison.
+
+`examples/data/spheres/` and `examples/data/traffic/` keep each synthetic scene
+with its ground truth and descriptive sidecars. Commands in the root README and
+technical reference run from the repository root. Build outputs remain under
+ignored `build/` or `build-*/` directories.
 
 ## Request lifecycle and ownership
 
@@ -100,7 +122,7 @@ fixed field sizes avoid needing a delimiter inside arbitrary binary data.
 Fields are copied individually at fixed offsets, avoiding C++ struct padding and
 unaligned typed accesses. The implementation requires little-endian hosts and
 IEEE-754 float32. Detailed layouts and status values are in the
-[wire protocol reference](README.md#wire-protocol).
+[wire protocol reference](reference.md#wire-protocol).
 
 TCP is a byte stream. `readExact` and `writeExact` loop over partial transfers,
 retry EINTR, and report failure on closure or other errors. Writes use MSG_NOSIGNAL
@@ -132,7 +154,7 @@ Counters track completed handlers, failures and processed points. A gauge tracks
 active clustering handlers; scrapes are excluded. Histogram buckets are cumulative,
 including an infinity bucket, count and sum. Metrics reset on server restart; the
 exporter does not persist time-series history. A separate Prometheus installation
-is optional. See [metric definitions](README.md#metrics).
+is optional. See [metric definitions](reference.md#metrics).
 
 ## Validation and deployment tradeoffs
 
@@ -153,4 +175,4 @@ connection/memory budget. Dense workloads have no compute deadline or cancellati
 Shutdown does not drain requests, listeners bind all IPv4 interfaces, and neither
 endpoint supplies authentication or TLS. Output directories are not published
 transactionally. A production deployment needs explicit requirements and controls
-for those limits; see [deployment scope](README.md#deployment-scope-and-remaining-production-work).
+for those limits; see [deployment scope](reference.md#deployment-scope-and-remaining-production-work).

@@ -1,5 +1,5 @@
-#include "dbscan/protocol.h"
-#include "dbscan/metrics.h"
+#include "protocol.h"
+#include "metrics.h"
 #include <gtest/gtest.h>
 #include <sys/socket.h>
 #include <thread>

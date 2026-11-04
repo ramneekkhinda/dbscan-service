@@ -1,4 +1,4 @@
-#include "dbscan/protocol.h"
+#include "protocol.h"
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <sys/socket.h>

@@ -58,7 +58,7 @@ def write_xyz(path, points):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", nargs="?", type=Path,
-                        default=Path(__file__).resolve().parents[1] / "data/road_scene.xyz")
+                        default=Path(__file__).resolve().parents[1] / "examples/data/traffic/road_scene.xyz")
     args = parser.parse_args()
     randomizer = random.Random(42)
     points, labels, descriptions = [], [], []
