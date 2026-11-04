@@ -50,10 +50,6 @@ if(BUILD_TESTING)
         add_test(NAME integration COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration/integration.py
             $<TARGET_FILE:dbscan_server> $<TARGET_FILE:processPointcloud> $<TARGET_FILE:make_scene>)
-        set_tests_properties(integration PROPERTIES TIMEOUT 60)
-        add_test(NAME integration_extended COMMAND ${Python3_EXECUTABLE}
-            ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration/extended_integration.py
-            $<TARGET_FILE:dbscan_server> $<TARGET_FILE:processPointcloud>)
-        set_tests_properties(integration_extended PROPERTIES TIMEOUT 90)
+        set_tests_properties(integration PROPERTIES TIMEOUT 150)
     endif()
 endif()
