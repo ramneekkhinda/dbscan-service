@@ -100,16 +100,9 @@ the updated binary.
 
 ## How it works
 
-```mermaid
-flowchart LR
-    XYZ[XYZ point cloud] --> Client[processPointcloud]
-    Client -->|Points + parameters over TCP| Server[dbscan_server]
-    Server --> Grid[Uniform-grid DBSCAN]
-    Grid -->|Labels| Server
-    Server -->|Labels + clustering time| Client
-    Client --> Files[Cluster files + noise.xyz]
-    Server --> Metrics[HTTP /metrics]
-```
+![Architecture: the client reads XYZ points, exchanges points and labels with the TCP server, and writes cluster files. The server calls DBSCAN and exposes metrics.](docs/assets/architecture.png)
+
+[PlantUML source](docs/assets/architecture.puml)
 
 The grid uses cells of width `eps` and searches cells intersecting each point's
 radius bounds, rounded outward to include floating-point boundary cases. It

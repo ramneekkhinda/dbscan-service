@@ -9,18 +9,20 @@ are outside its scope. Build commands, wire offsets and metric names are in the
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    Input[Input XYZ file] --> Client[processPointcloud]
-    Client -->|Points and parameters over TCP| Server[dbscan_server :5555]
-    Server --> Core[DBSCAN library and grid]
-    Core -->|Labels| Server
-    Server -->|Labels and clustering time| Client
-    Client --> Output[Cluster files and noise.xyz]
-    Server --> Metrics[Shared metrics]
-    Metrics --> HTTP[HTTP exporter :9091 /metrics]
-    HTTP --> Reader[Browser, curl or Prometheus]
+![Architecture: XYZ input enters the client, which sends points to the TCP server and writes returned labels as cluster files. The server invokes DBSCAN and exports metrics.](assets/architecture.png)
+
+[PlantUML source](assets/architecture.puml). The PNG is rendered ahead of time,
+so viewing this documentation does not require a diagram renderer or external
+diagram service.
+
+To regenerate it after editing the source, run this from the repository root
+with Java and a local [PlantUML JAR](https://plantuml.com/download):
+
+```sh
+java -jar /path/to/plantuml.jar -charset UTF-8 -tpng docs/assets/architecture.puml
 ```
+
+The source uses PlantUML's Smetana layout engine, so Graphviz is not required.
 
 | Component | Responsibility |
 | --- | --- |

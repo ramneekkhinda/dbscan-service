@@ -1,0 +1,39 @@
+@startuml architecture
+!pragma layout smetana
+top to bottom direction
+skinparam backgroundColor #F8FAFC
+skinparam defaultFontName SansSerif
+skinparam defaultFontSize 15
+skinparam dpi 150
+skinparam shadowing false
+skinparam roundcorner 14
+skinparam ArrowColor #64748B
+skinparam ArrowThickness 2
+skinparam rectangle {
+  BackgroundColor #FFFFFF
+  BorderColor #CBD5E1
+  FontColor #0F172A
+}
+skinparam componentStyle rectangle
+skinparam padding 14
+skinparam nodesep 35
+skinparam ranksep 40
+title DBSCAN point-cloud service
+
+rectangle "XYZ point cloud\n\nx y z coordinates" as input
+rectangle "processPointcloud\n\nCommand-line client" as client #EFF6FF
+rectangle "dbscan_server\n\nTCP :5555" as server #EFF6FF
+rectangle "DBSCAN library\n\nUniform grid + cluster expansion" as core
+rectangle "Cluster files\n\ncluster_1.xyz, ...\nnoise.xyz" as output
+rectangle "Shared metrics\n\nHTTP :9091/metrics" as metrics #F0FDFA
+rectangle "curl / browser / Prometheus" as reader
+
+input --> client : Read XYZ
+client --> server : Points + parameters
+server --> client : Labels + clustering time
+server --> core : Cluster points
+core --> server : Labels
+client --> output : Write by label
+server --> metrics : Record results
+metrics --> reader : Prometheus text
+@enduml
