@@ -17,8 +17,14 @@ namespace {
 
 using dbscan::Point;
 
-// Both maps are needed: prevent either splitting or merging a cluster.
-// Noise must match exactly; 0 is never a valid final label.
+/**
+ * @brief Compare cluster membership while allowing positive cluster IDs to differ.
+ * @param actual Labels produced by the implementation under test.
+ * @param expected Known labels or labels from the naive reference.
+ * @return True only for a one-to-one mapping of clusters with identical noise.
+ * Both mapping directions are checked to catch splits and merges. Zero is an
+ * unfinished label and is rejected even when present in both vectors.
+ */
 bool equivalentLabels(const std::vector<int>& actual, const std::vector<int>& expected) {
     if (actual.size() != expected.size()) {
         return false;
@@ -46,6 +52,10 @@ bool equivalentLabels(const std::vector<int>& actual, const std::vector<int>& ex
     return true;
 }
 
+/**
+ * @test Accept cluster renumbering, but reject splits, merges, noise changes, zero labels, and
+ * size mismatches.
+ */
 TEST(LabelComparison, AllowsRenumberingButRejectsWrongMembership) {
     EXPECT_TRUE(equivalentLabels({1, 1, -1, 2}, {7, 7, -1, 4}));
     EXPECT_FALSE(equivalentLabels({1, 1}, {1, 2}));
@@ -55,31 +65,42 @@ TEST(LabelComparison, AllowsRenumberingButRejectsWrongMembership) {
     EXPECT_FALSE(equivalentLabels({1}, {}));
 }
 
+/**
+ * @test Check the squared Euclidean distance for a known displacement with negative coordinates.
+ */
 TEST(Point, SquaredDistance) {
     EXPECT_FLOAT_EQ(dbscan::dist2({-1, -2, -3}, {2, 2, -3}), 25.0F);
 }
 
+/** @test Return no labels when the input contains no points. */
 TEST(Dbscan, EmptyInput) {
     EXPECT_TRUE(dbscan::dbscan({}, 1.0F, 1).empty());
 }
 
+/** @test Count the query point itself: one sample forms a cluster only when minSamples is one. */
 TEST(Dbscan, SinglePointCountsItself) {
     const std::vector<Point> points{{0, 0, 0}};
     EXPECT_EQ(dbscan::dbscan(points, 0.5F, 1), (std::vector<int>{1}));
     EXPECT_EQ(dbscan::dbscan(points, 0.5F, 2), (std::vector<int>{-1}));
 }
 
+/** @test Keep two dense, widely separated groups in distinct clusters. */
 TEST(Dbscan, TwoFarApartBlobs) {
     const std::vector<Point> points{{0, 0, 0}, {0.1F, 0, 0}, {0.2F, 0, 0},
                                     {10, 0, 0}, {10.1F, 0, 0}, {10.2F, 0, 0}};
     EXPECT_TRUE(equivalentLabels(dbscan::dbscan(points, 0.3F, 3), {1, 1, 1, 2, 2, 2}));
 }
 
+/** @test Cluster a dense group while leaving an isolated point labeled as noise. */
 TEST(Dbscan, BlobPlusOutlier) {
     const std::vector<Point> points{{0, 0, 0}, {0.1F, 0, 0}, {0, 0.1F, 0}, {20, 20, 20}};
     EXPECT_TRUE(equivalentLabels(dbscan::dbscan(points, 0.3F, 3), {1, 1, 1, -1}));
 }
 
+/**
+ * @test Adopt previously visited noise as a border point without expanding through it to an
+ * outlier.
+ */
 TEST(Dbscan, PreviouslyNoisyBorderPointDoesNotExpand) {
     // At x=0 there are only 3 neighbours, so it is initially noise.
     // x=0.9 is core and adopts x=0. The point x=-0.9 stays noise:
@@ -89,6 +110,10 @@ TEST(Dbscan, PreviouslyNoisyBorderPointDoesNotExpand) {
     EXPECT_TRUE(equivalentLabels(dbscan::dbscan(points, 1.0F, 4), {1, 1, 1, 1, -1}));
 }
 
+/**
+ * @test Assign an unvisited border point to its core cluster without expanding through that
+ * border.
+ */
 TEST(Dbscan, UnvisitedBorderPointDoesNotExpand) {
     // The core is visited first this time, exercising the other border path.
     const std::vector<Point> points{{0.9F, 0, 0}, {1.1F, 0, 0}, {1.2F, 0, 0},
@@ -96,6 +121,9 @@ TEST(Dbscan, UnvisitedBorderPointDoesNotExpand) {
     EXPECT_TRUE(equivalentLabels(dbscan::dbscan(points, 1.0F, 4), {1, 1, 1, 1, -1}));
 }
 
+/**
+ * @test Follow a chain of core points beyond the initial radius and include both border endpoints.
+ */
 TEST(Dbscan, ExpansionReachesBeyondInitialNeighbourhood) {
     std::vector<Point> points;
     for (int x = 0; x < 20; ++x) {
@@ -106,6 +134,10 @@ TEST(Dbscan, ExpansionReachesBeyondInitialNeighbourhood) {
     EXPECT_TRUE(equivalentLabels(dbscan::dbscan(points, 1.01F, 3), std::vector<int>(20, 1)));
 }
 
+/**
+ * @test Recover the known memberships of three sphere surfaces and sparse noise from a fixed-seed
+ * scene.
+ */
 TEST(Dbscan, ThreeSphereSurfacesPlusUniformNoise) {
     std::mt19937 random(42);
     std::vector<Point> points;
@@ -122,28 +154,37 @@ TEST(Dbscan, ThreeSphereSurfacesPlusUniformNoise) {
     EXPECT_TRUE(equivalentLabels(dbscan::dbscan(points, 0.65F, 4), expected));
 }
 
+/** @test Recover a cluster and an outlier when all coordinates are negative. */
 TEST(Dbscan, NegativeCoordinates) {
     const std::vector<Point> points{{-10, -5, -3}, {-10.1F, -5, -3}, {-10, -5.1F, -3},
                                     {-30, -30, -30}};
     EXPECT_TRUE(equivalentLabels(dbscan::dbscan(points, 0.3F, 3), {1, 1, 1, -1}));
 }
 
+/** @test Include points exactly eps apart and separate them when the radius is slightly smaller. */
 TEST(Dbscan, IncludesExactEpsBoundary) {
     EXPECT_TRUE(equivalentLabels(dbscan::dbscan({{0, 0, 0}, {3, 4, 0}}, 5.0F, 2), {1, 1}));
     EXPECT_TRUE(equivalentLabels(dbscan::dbscan({{0, 0, 0}, {3, 4, 0}}, 4.9F, 2), {-1, -1}));
 }
 
+/** @test Count coincident samples individually when deciding whether a point is core. */
 TEST(Dbscan, DuplicatePointsCountSeparately) {
     EXPECT_TRUE(equivalentLabels(dbscan::dbscan({{1, 2, 3}, {1, 2, 3}, {1, 2, 3}}, 0.1F, 3),
                                  {1, 1, 1}));
 }
 
+/**
+ * @test Assign consecutive cluster IDs in input discovery order, independent of spatial position.
+ */
 TEST(Dbscan, ClusterNumbersFollowDiscoveryOrder) {
     // Exact labels are intentional here: numbering itself is the contract tested.
     EXPECT_EQ(dbscan::dbscan({{20, 0, 0}, {-20, 0, 0}, {0, 0, 0}}, 1.0F, 1),
               (std::vector<int>{1, 2, 3}));
 }
 
+/**
+ * @test Reject nonpositive or nonfinite eps and minSamples below one before handling empty input.
+ */
 TEST(Dbscan, RejectsInvalidParametersEvenForEmptyInput) {
     for (const float eps : {0.0F, -1.0F, std::numeric_limits<float>::infinity(),
                             std::numeric_limits<float>::quiet_NaN()}) {
@@ -153,10 +194,15 @@ TEST(Dbscan, RejectsInvalidParametersEvenForEmptyInput) {
     EXPECT_THROW(dbscan::dbscan({}, 1.0F, -1), std::invalid_argument);
 }
 
+/** @test Check that the public naive reference entry point can cluster a single point. */
 TEST(Dbscan, NamedReferenceIsAvailable) {
     EXPECT_EQ(dbscan::dbscanNaive({{0, 0, 0}}, 1.0F, 1), (std::vector<int>{1}));
 }
 
+/**
+ * @test Compare every grid neighborhood with a full scan, including duplicates, radius boundaries,
+ * and output reuse.
+ */
 TEST(Grid, NeighboursMatchFullScanAcrossCellsAndReuseOutput) {
     std::vector<Point> points;
     for (int x = -2; x <= 2; ++x) {
@@ -184,6 +230,10 @@ TEST(Grid, NeighboursMatchFullScanAcrossCellsAndReuseOutput) {
     }
 }
 
+/**
+ * @test Keep cells distinct at both packed-coordinate limits on every axis and match naive
+ * clustering.
+ */
 TEST(Grid, PackedKeyLimitsKeepAxesDistinctAndDoNotWrap) {
     constexpr float low = -1048576.0F;
     constexpr float high = 1048575.0F;
@@ -199,6 +249,7 @@ TEST(Grid, PackedKeyLimitsKeepAxesDistinctAndDoNotWrap) {
                                   dbscan::dbscanNaive(points, 1.0F, 1)));
 }
 
+/** @test Reject out-of-range cell coordinates on each axis instead of wrapping packed keys. */
 TEST(Grid, RejectsCoordinatesThatCannotBePacked) {
     // Try every axis: merely masking to 21 bits would silently alias distant cells.
     for (std::size_t axis = 0; axis < 3; ++axis) {
@@ -212,6 +263,9 @@ TEST(Grid, RejectsCoordinatesThatCannotBePacked) {
     }
 }
 
+/**
+ * @test Reject invalid cell sizes and nonfinite coordinates when constructing the grid directly.
+ */
 TEST(Grid, RejectsNonFiniteCoordinatesAndInvalidEps) {
     const std::vector<Point> empty;
     for (const float eps : {0.0F, -1.0F, std::numeric_limits<float>::infinity(),
@@ -225,6 +279,10 @@ TEST(Grid, RejectsNonFiniteCoordinatesAndInvalidEps) {
     }
 }
 
+/**
+ * @test Compare grid and full-scan memberships on shuffled scenes over fixed seeds, radii, and
+ * density thresholds.
+ */
 TEST(Dbscan, GridMatchesNaiveOnSeveralFixedSeedScenes) {
     for (const unsigned seed : {7U, 42U, 123U, 456U, 2026U}) {
         std::mt19937 random(seed);
@@ -245,6 +303,10 @@ TEST(Dbscan, GridMatchesNaiveOnSeveralFixedSeedScenes) {
     }
 }
 
+/**
+ * @test Cluster 200 coincident points together and match the full-scan reference on a dense
+ * neighborhood.
+ */
 TEST(Dbscan, DenseCloudMatchesNaive) {
     const std::vector<Point> points(200, Point{-0.1F, 0.1F, -0.1F});
     EXPECT_TRUE(equivalentLabels(dbscan::dbscan(points, 0.5F, 4),
@@ -252,6 +314,10 @@ TEST(Dbscan, DenseCloudMatchesNaive) {
     EXPECT_TRUE(equivalentLabels(dbscan::dbscan(points, 0.5F, 4), std::vector<int>(200, 1)));
 }
 
+/**
+ * @test Keep points outside the radius separate at extreme scales where float squared distances
+ * would fail.
+ */
 TEST(Dbscan, SquaredDistancesDoNotOverflowOrUnderflowFloat) {
     for (const float eps : {1e-30F, 1e30F}) {
         const std::vector<Point> points{{0, 0, 0}, {1.5F * eps, 0, 0}};
@@ -260,12 +326,17 @@ TEST(Dbscan, SquaredDistancesDoNotOverflowOrUnderflowFloat) {
     }
 }
 
+/**
+ * @test Use double distance arithmetic to reject a pair that float subtraction could round onto
+ * the radius.
+ */
 TEST(Dbscan, FloatRoundingDoesNotConnectPointsOutsideRadius) {
     const std::vector<Point> points{{-1e-8F, 0, 0}, {1, 0, 0}};
     EXPECT_TRUE(equivalentLabels(dbscan::dbscan(points, 1.0F, 2), {-1, -1}));
     EXPECT_TRUE(equivalentLabels(dbscan::dbscanNaive(points, 1.0F, 2), {-1, -1}));
 }
 
+/** @test Require both clustering entry points to reject infinite and NaN coordinates. */
 TEST(Dbscan, BothEntryPointsRejectNonFiniteCoordinates) {
     for (const float value : {std::numeric_limits<float>::infinity(),
                               std::numeric_limits<float>::quiet_NaN()}) {
@@ -275,6 +346,10 @@ TEST(Dbscan, BothEntryPointsRejectNonFiniteCoordinates) {
     }
 }
 
+/**
+ * @test Match the double distance predicate near zero across axes, signs, query orders, and radius
+ * scales.
+ */
 TEST(Grid, NearZeroRadiusBoundaryMatchesDistancePredicate) {
     // Rounding accepts a pair two cells apart, but must still reject a point
     // one float step beyond the radius. Check all axes, signs and query orders.
@@ -309,6 +384,10 @@ TEST(Grid, NearZeroRadiusBoundaryMatchesDistancePredicate) {
     }
 }
 
+/**
+ * @test Compare grid and naive memberships across 40 fixed seeds, six scales, duplicates, and four
+ * density thresholds.
+ */
 TEST(Dbscan, RandomizedMembershipAcrossCoordinateScales) {
     for (unsigned seed = 0; seed < 40; ++seed) {
         std::mt19937 random(seed);
@@ -331,6 +410,7 @@ TEST(Dbscan, RandomizedMembershipAcrossCoordinateScales) {
     }
 }
 
+/** @test Preserve memberships after an exactly representable translation of a fixed-seed cloud. */
 TEST(Dbscan, TranslationPreservesMembershipAwayFromRoundingBoundaries) {
     std::mt19937 random(91);
     std::uniform_int_distribution<int> coordinate(-16, 16);
@@ -346,6 +426,10 @@ TEST(Dbscan, TranslationPreservesMembershipAwayFromRoundingBoundaries) {
     EXPECT_TRUE(equivalentLabels(dbscan::dbscan(points, 0.75F, 4), expected));
 }
 
+/**
+ * @test Assign a shared border to the first discovered component without merging the two core
+ * components.
+ */
 TEST(Dbscan, AmbiguousBorderDoesNotMergeCoreComponents) {
     std::vector<Point> points{{-1.5F,0,0}, {-1.6F,0,0}, {-1.7F,0,0}, {-0.9F,0,0},
                               {0,0,0}, {0.9F,0,0}, {1.5F,0,0}, {1.6F,0,0}, {1.7F,0,0}};

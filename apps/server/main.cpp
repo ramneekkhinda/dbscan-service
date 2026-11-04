@@ -14,6 +14,15 @@
 
 namespace wire = dbscan::wire;
 namespace {
+/**
+ * @brief Read one request, validate it, cluster through the grid, and send a reply.
+ * @param fd Borrowed client socket; ownership remains with handleClient().
+ * @param[out] count Point count, set after clustering completes.
+ * @param[out] seconds Clustering duration, set only after successful clustering.
+ * @param[out] responseStarted Set before sending a header so an exception handler
+ * cannot accidentally append a second header to a partially sent response.
+ * @return True only if clustering and the complete success response both succeed.
+ */
 bool processRequest(int fd, std::size_t& count, double& seconds, bool& responseStarted) {
     wire::RequestBytes bytes{};
     if (!wire::readExact(fd, bytes.data(), bytes.size())) return false;
@@ -42,6 +51,11 @@ bool processRequest(int fd, std::size_t& count, double& seconds, bool& responseS
     if (!wire::writeExact(fd, reply.data(), reply.size())) return false;
     return response.status == wire::Status::Ok && wire::writeLabels(fd, labels);
 }
+/**
+ * @brief Own one accepted connection, apply timeouts, and record its final metrics.
+ * Handles exceptions and sends InternalError only before any response has begun.
+ * Runs in a detached worker; the shared pointer keeps metrics alive for its lifetime.
+ */
 void handleClient(int fd, const std::shared_ptr<dbscan::Metrics>& metrics) {
     const wire::Socket client(fd);
     metrics->connection(1);
@@ -66,6 +80,11 @@ void handleClient(int fd, const std::shared_ptr<dbscan::Metrics>& metrics) {
     metrics->record(success, count, seconds);
     metrics->connection(-1);
 }
+/**
+ * @brief Serve HTTP metrics sequentially on a separate borrowed listening socket.
+ * Accept GET /metrics, bound headers to 8192 bytes, and reject other paths or
+ * incomplete/oversized headers with HTTP errors. Each connection closes afterward.
+ */
 void metricsLoop(int listener, const std::shared_ptr<dbscan::Metrics>& metrics) {
     for (;;) {
         const wire::Socket client(accept(listener, nullptr, nullptr));
@@ -102,6 +121,7 @@ void metricsLoop(int listener, const std::shared_ptr<dbscan::Metrics>& metrics) 
     }
 }
 }
+/** @brief Parse ports, start the metrics thread, and dispatch one worker per TCP client. */
 int main(int argc, char** argv) {
     try {
         int port = 5555, metricsPort = 9091;

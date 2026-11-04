@@ -8,6 +8,11 @@
 #include <random>
 #include <vector>
 
+/**
+ * @brief Compare naive and grid clustering time on the same fixed-seed 5,000-point scene.
+ * Warm each implementation once, then average 20 complete calls, including grid
+ * construction. Print cluster/noise counts; timings are measurements, not assertions.
+ */
 int main() {
     std::mt19937 random(42);
     std::vector<dbscan::Point> points;

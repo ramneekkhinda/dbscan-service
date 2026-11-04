@@ -6,11 +6,21 @@
 #include <string>
 
 namespace dbscan {
+/** @brief Mutex-protected service counters and cumulative Prometheus duration histogram. */
 class Metrics {
 public:
+    /** @brief Adjust the active clustering-connection gauge, normally by +1 or -1. */
     void connection(int delta);
-    // seconds < 0 means clustering did not complete; omit its histogram sample.
+    /**
+     * @brief Record one finished handler and whether the request succeeded.
+     * @param success False increments the error counter; every call counts a request.
+     * @param points Points in a completed clustering run, counted when seconds >= 0.
+     * @param seconds Clustering duration including grid construction. A negative
+     * value means clustering did not complete: omit points and histogram updates.
+     * Completed clustering is counted even if sending its response later failed.
+     */
     void record(bool success, std::size_t points, double seconds);
+    /** @brief Render a consistent Prometheus text snapshot while holding the mutex. */
     std::string render() const;
 private:
     mutable std::mutex mutex_;

@@ -8,6 +8,11 @@
 #include <string>
 
 namespace wire = dbscan::wire;
+/**
+ * @brief Read XYZ, request remote clustering, validate labels, and write grouped XYZ.
+ * Requires an empty output directory and always writes noise.xyz. All response
+ * labels are validated before any cluster files are written. Returns 1 on error.
+ */
 int main(int argc, char** argv) {
     try {
         std::string input, output, endpoint;

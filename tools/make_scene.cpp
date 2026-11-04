@@ -5,6 +5,11 @@
 #include <iostream>
 #include <stdexcept>
 
+/**
+ * @brief Write a fixed-seed 1,000-point sphere scene and companion ground-truth labels.
+ * Generates three 300-point surfaces and 100 distant noise samples for validation
+ * with eps=0.65 and minSamples=4. An optional argument selects the XYZ output path.
+ */
 int main(int argc, char** argv) {
     try {
         if (argc > 2) throw std::invalid_argument("usage: make_scene [scene.xyz]");

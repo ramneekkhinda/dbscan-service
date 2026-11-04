@@ -1,4 +1,12 @@
-"""Standard-library-only end-to-end checks; CTest starts and stops its own server."""
+"""Exercise real client/server processes using only the Python standard library.
+
+CTest passes paths to the server, client, and scene-generator binaries. This
+script starts isolated servers on available local ports, checks output against
+known labels, then exercises transport failures, concurrency, and metrics. It
+uses the server's grid implementation, not the naive reference from unit tests.
+Temporary files and child servers are cleaned up on success and failure. Timing
+statistics are diagnostic measurements, not performance pass/fail thresholds.
+"""
 import collections
 import concurrent.futures
 import http.client
@@ -18,6 +26,7 @@ MAGIC = 0x44425343
 
 
 def exact(connection, size):
+    """Receive exactly size bytes, or raise RuntimeError if the peer closes early."""
     data = bytearray()
     while len(data) < size:
         part = connection.recv(size - len(data))
@@ -29,6 +38,13 @@ def exact(connection, size):
 
 def exchange(port, points=(), eps=0.65, minimum=4, magic=MAGIC, version=1,
              reserved=0, count=None, fragmented=False):
+    """Send one binary request and return (status, labels, clustering_ms).
+
+    Header overrides deliberately construct invalid requests. A count override
+    changes only the declared point count, not the payload. fragmented sends
+    the header one byte at a time to exercise exact-length reads. Error replies
+    must declare zero labels; valid replies must have the expected magic/version.
+    """
     header = struct.pack("<IHHfII", magic, version, reserved, eps, minimum,
                          len(points) if count is None else count)
     payload = b"".join(struct.pack("<fff", *point) for point in points)
@@ -49,6 +65,7 @@ def exchange(port, points=(), eps=0.65, minimum=4, magic=MAGIC, version=1,
 
 
 def scrape(port, path="/metrics"):
+    """GET an HTTP path and return its status and decoded body, closing afterward."""
     connection = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
     try:
         connection.request("GET", path)
@@ -59,6 +76,14 @@ def scrape(port, path="/metrics"):
 
 
 def run_end_to_end_checks(server_binary, client_binary, scene_binary):
+    """Check the full XYZ-to-TCP-to-cluster-files flow against known memberships.
+
+    Also cover empty/single-point input, invalid headers and coordinates,
+    truncated requests, concurrent clients, output-directory reuse, bad XYZ,
+    metrics counters and HTTP errors, and extreme finite radii. Ten 5,000-point
+    requests report TCP and server clustering timings without a speed threshold.
+    The spawned server is stopped in finally, even when an assertion fails.
+    """
     # Reserve distinct available ports, then release them immediately before startup.
     with socket.socket() as a, socket.socket() as b:
         a.bind(("127.0.0.1", 0)); b.bind(("127.0.0.1", 0))
@@ -108,6 +133,7 @@ def run_end_to_end_checks(server_binary, client_binary, scene_binary):
                 # Refusing an existing output avoids leaving stale cluster files.
                 assert subprocess.run(command, capture_output=True).returncode != 0
                 def concurrent_request(_):
+                    """Require one parallel grid-clustering response to match scene ground truth."""
                     status, labels, _ = exchange(port, points)
                     assert status == 0 and list(labels) == truth
                 with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
@@ -174,6 +200,12 @@ def run_end_to_end_checks(server_binary, client_binary, scene_binary):
 
 
 def fake_response_checks(client_binary, directory):
+    """Require the real client to reject six malformed or unsuccessful replies.
+
+    Fake servers send bad magic, a mismatched count, truncated labels, label zero,
+    an error status, or a negative duration. Each client must exit unsuccessfully
+    and leave its output directory absent or empty.
+    """
     source = directory / "two.xyz"
     source.write_text("0 0 0\n0.1 0 0\n")
     replies = [struct.pack("<IHHIf", 0, 1, 0, 2, 0),
@@ -190,6 +222,7 @@ def fake_response_checks(client_binary, directory):
         listener.settimeout(5)
         port = listener.getsockname()[1]
         def serve():
+            """Consume a complete client request, send this case's reply, and retain errors."""
             try:
                 with listener, listener.accept()[0] as connection:
                     connection.settimeout(5)
@@ -213,6 +246,14 @@ def fake_response_checks(client_binary, directory):
 
 
 def run_stress_checks(server_binary, client_binary):
+    """Exercise failure recovery and concurrent traffic against an isolated server.
+
+    Cover 44 request EOF boundaries, three fragmentation sizes, 240 requests
+    with 16 workers, 24 connection resets, and metrics scrapes during traffic.
+    Then check 50 traffic-scene requests against ground truth at a target 10 Hz,
+    allow open descriptors to return near baseline, and test malformed replies
+    with fake servers. Latency is reported, not bounded by a performance assertion.
+    """
     with socket.socket() as a, socket.socket() as b:
         a.bind(("127.0.0.1", 0)); b.bind(("127.0.0.1", 0))
         port, metrics_port = a.getsockname()[1], b.getsockname()[1]
@@ -257,6 +298,7 @@ def run_stress_checks(server_binary, client_binary):
                         assert struct.unpack("<7i", exact(connection, 28)) == expected
                 scrape_errors = []
                 def watch():
+                    """Scrape during traffic and check histogram/count consistency until stopped."""
                     while not stop.wait(0.02):
                         try:
                             status, text = scrape(metrics_port)
@@ -270,6 +312,7 @@ def run_stress_checks(server_binary, client_binary):
                 watcher = threading.Thread(target=watch)
                 watcher.start()
                 def request(_):
+                    """Require one concurrent request to return the known two-cluster labels."""
                     assert exchange(port, small, eps=0.4, minimum=3)[:2] == (0, expected)
                 with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
                     list(pool.map(request, range(240)))
@@ -324,6 +367,7 @@ def run_stress_checks(server_binary, client_binary):
                     server.kill(); server.wait()
 
 def main(server_binary, client_binary, scene_binary):
+    """Run the end-to-end and stress suites using the three CTest-supplied binaries."""
     run_end_to_end_checks(server_binary, client_binary, scene_binary)
     run_stress_checks(server_binary, client_binary)
 

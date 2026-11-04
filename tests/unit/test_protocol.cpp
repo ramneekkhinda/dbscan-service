@@ -6,6 +6,9 @@
 #include <limits>
 
 namespace wire = dbscan::wire;
+/**
+ * @test Match the request header to known little-endian bytes and decode its fields without loss.
+ */
 TEST(Protocol, RequestRoundTripAndKnownLittleEndianBytes) {
     wire::Request request;
     request.eps = 0.5F; request.minSamples = 4; request.nPoints = 123;
@@ -18,6 +21,10 @@ TEST(Protocol, RequestRoundTripAndKnownLittleEndianBytes) {
     EXPECT_EQ(decoded.minSamples, 4U);
     EXPECT_EQ(decoded.nPoints, 123U);
 }
+/**
+ * @test Return the expected error status for bad magic, version, point count, radius, and reserved
+ * fields.
+ */
 TEST(Protocol, RejectsInvalidRequestHeaders) {
     wire::Request request, decoded;
     request.eps = 1; request.minSamples = 1;
@@ -32,6 +39,10 @@ TEST(Protocol, RejectsInvalidRequestHeaders) {
     request.eps = 1; request.reserved = 1;
     EXPECT_EQ(wire::decodeRequest(wire::encodeRequest(request), decoded), wire::Status::BadParameters);
 }
+/**
+ * @test Round-trip a valid response and reject bad magic, version, or count while accepting a
+ * valid error response.
+ */
 TEST(Protocol, ResponseRoundTripAndValidation) {
     wire::Response response, decoded;
     response.nPoints = 12; response.dbscanMs = 2.5F;
@@ -47,6 +58,7 @@ TEST(Protocol, ResponseRoundTripAndValidation) {
     response.nPoints = 0; response.status = wire::Status::BadParameters;
     EXPECT_TRUE(wire::decodeResponse(wire::encodeResponse(response), decoded));
 }
+/** @test Accept extreme positive finite radii, but reject infinity, NaN, and negative radii. */
 TEST(Protocol, ExtremeFiniteEpsMatchesDoubleDistanceContract) {
     wire::Request request, decoded;
     request.minSamples = 1;
@@ -60,6 +72,10 @@ TEST(Protocol, ExtremeFiniteEpsMatchesDoubleDistanceContract) {
         EXPECT_EQ(wire::decodeRequest(wire::encodeRequest(request), decoded), wire::Status::BadParameters);
     }
 }
+/**
+ * @test Transfer one MiB with a small send buffer and report peer closure without terminating on
+ * SIGPIPE.
+ */
 TEST(Protocol, ExactIoHandlesLargeTransfersAndPeerClosure) {
     int descriptors[2];
     ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, descriptors), 0);
@@ -82,6 +98,10 @@ TEST(Protocol, ExactIoHandlesLargeTransfersAndPeerClosure) {
     shutdown(reader.get(), SHUT_RDWR);
     EXPECT_FALSE(wire::writeExact(writer.get(), &byte, 1)); // MSG_NOSIGNAL prevents process death.
 }
+/**
+ * @test Round-trip XYZ float payloads and signed labels, including the negative noise label,
+ * through a socket pair.
+ */
 TEST(Protocol, PointAndLabelPayloadsRoundTrip) {
     int descriptors[2];
     ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, descriptors), 0);
@@ -97,6 +117,10 @@ TEST(Protocol, PointAndLabelPayloadsRoundTrip) {
     ASSERT_TRUE(wire::readLabels(b.get(), 2, labels));
     EXPECT_EQ(labels, (std::vector<int>{-1, 2}));
 }
+/**
+ * @test Account for concurrent successes and one failure with exact counters, zero active
+ * connections, and cumulative buckets.
+ */
 TEST(Metrics, ConcurrentUpdatesAndCumulativeHistogram) {
     dbscan::Metrics metrics;
     std::vector<std::thread> threads;
@@ -118,6 +142,10 @@ TEST(Metrics, ConcurrentUpdatesAndCumulativeHistogram) {
     }
 }
 
+/**
+ * @test Accept the maximum point count and int-sized minimum, then reject each value just beyond
+ * its limit.
+ */
 TEST(Protocol, ExactPointCountAndMinimumBounds) {
     wire::Request request, decoded;
     request.eps = 1;
@@ -130,6 +158,10 @@ TEST(Protocol, ExactPointCountAndMinimumBounds) {
     EXPECT_EQ(wire::decodeRequest(wire::encodeRequest(request), decoded), wire::Status::TooManyPoints);
 }
 
+/**
+ * @test Reject unknown statuses, payload counts on errors, and negative or nonfinite clustering
+ * durations.
+ */
 TEST(Protocol, RejectsMalformedResponseValues) {
     wire::Response response, decoded;
     response.status = static_cast<wire::Status>(6);

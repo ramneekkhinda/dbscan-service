@@ -12,6 +12,7 @@
 
 namespace dbscan::wire {
 namespace {
+/** @brief Require IEEE-754 float32 at compile time and little-endian layout at runtime. */
 void checkPlatform() {
     static_assert(sizeof(float) == 4 && std::numeric_limits<float>::is_iec559);
     const std::uint16_t one = 1;
@@ -19,11 +20,12 @@ void checkPlatform() {
         throw std::runtime_error("wire protocol requires a little-endian host");
     }
 }
-// Copy each field, never a C++ struct (which may contain padding).
+/** @brief Copy one scalar into a fixed-offset header field without struct padding. */
 template <typename T, std::size_t N>
 void put(std::array<std::uint8_t, N>& bytes, std::size_t offset, T value) {
     std::memcpy(bytes.data() + offset, &value, sizeof(value));
 }
+/** @brief Copy one fixed-offset header field into a scalar without alignment assumptions. */
 template <typename T, std::size_t N>
 void get(const std::array<std::uint8_t, N>& bytes, std::size_t offset, T& value) {
     std::memcpy(&value, bytes.data() + offset, sizeof(value));

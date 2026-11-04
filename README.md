@@ -148,6 +148,7 @@ All commands below run from the repository root after building.
 | Write another client | [Binary wire protocol](docs/reference.md#wire-protocol) |
 | Configure monitoring | [Metric names and scrape configuration](docs/reference.md#metrics) |
 | Review architecture and tradeoffs | [Design document](docs/design.md) |
+| Understand test coverage and the naive reference | [Test guide](tests/README.md) |
 
 ## Repository layout
 

@@ -10,7 +10,14 @@
 namespace dbscan {
 namespace {
 
-// Reuse the caller's buffer; every search examines every input point.
+/**
+ * @brief Find neighbors by checking every input point; the O(n) reference search.
+ * @param pts Input coordinates, unchanged by the search.
+ * @param index Index of the point whose neighborhood is requested.
+ * @param eps2 Squared radius, calculated in double precision by the caller.
+ * @param[out] neighbours Cleared and filled with indices, including the query
+ * point and points exactly on the radius. Allocated capacity is reused.
+ */
 void findNeighbours(const std::vector<Point>& pts, std::size_t index, double eps2,
                     std::vector<std::uint32_t>& neighbours) {
     neighbours.clear();
@@ -21,6 +28,12 @@ void findNeighbours(const std::vector<Point>& pts, std::size_t index, double eps
     }
 }
 
+/**
+ * @brief Check input shared by both clustering entry points, including empty input.
+ * @throws std::invalid_argument For invalid eps, minSamples, or nonfinite coordinates.
+ * @throws std::length_error If the point count cannot fit in int cluster labels.
+ * Grid-specific coordinate bounds are checked separately by Grid construction.
+ */
 void validateParameters(const std::vector<Point>& pts, float eps, int minSamples) {
     if (!std::isfinite(eps) || eps <= 0.0F || minSamples < 1) {
         throw std::invalid_argument("eps must be finite and > 0; minSamples must be >= 1");
@@ -36,8 +49,23 @@ void validateParameters(const std::vector<Point>& pts, float eps, int minSamples
     }
 }
 
-// One expansion algorithm, with the neighbour search supplied by a small lambda.
-// A template lets the compiler inline either search without virtual dispatch.
+/**
+ * @brief Expand DBSCAN clusters using a caller-supplied neighbor search.
+ * @tparam Search Callable type inferred from the naive or grid lambda. A template
+ * keeps one expansion implementation and permits inlining without virtual calls.
+ * @param pts Validated input points; their order determines cluster discovery order.
+ * @param minSamples Minimum neighborhood size, including the query point.
+ * @param search Callable as search(index, out): it must clear out and fill it with
+ * all indices within eps, including self and the boundary. It must return valid
+ * indices and a consistent neighborhood whenever a point is queried.
+ * @return One label per input point: -1 for noise, or positive cluster IDs.
+ *
+ * Only core points extend the seed queue. Non-core neighbors become border
+ * points, including points previously marked noise. Existing clusters are never
+ * reassigned; an ambiguous border belongs to the first cluster that reaches it.
+ * Each point is searched at most once and queued at most once, with O(n) extra
+ * memory. Runtime depends on Search; a full scan gives O(n^2) overall.
+ */
 template <typename Search>
 std::vector<int> clusterPoints(const std::vector<Point>& pts, int minSamples, Search search) {
     const auto minimum = static_cast<std::size_t>(minSamples);
