@@ -5,6 +5,9 @@ exporter. DBSCAN is implemented here using a uniform grid, with a naive referenc
 implementation for testing. Runtime dependencies: the C++ standard library and
 Linux/POSIX sockets. GoogleTest is fetched only for tests.
 
+See [DESIGN.md](DESIGN.md) for architecture, ownership, algorithm choices and
+failure-handling tradeoffs. This README contains setup commands and protocol references.
+
 ## Build and test on Linux
 
 Requires CMake >= 3.16, g++ or clang++, Git and internet access on the first
